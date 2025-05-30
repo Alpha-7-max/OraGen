@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" /> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Oracle AI - Image Gen</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Tailwind CSS configuration
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: 'rgb(var(--primary) / <alpha-value>)', 
+              'primary-light': 'rgb(var(--primary-light) / <alpha-value>)', 
+              'primary-fg': 'rgb(var(--primary-fg) / <alpha-value>)',
+              accent: 'rgb(var(--accent) / <alpha-value>)',
+              'accent-fg': 'rgb(var(--accent-fg) / <alpha-value>)',
+              'accent-dark': 'rgb(var(--accent-dark) / <alpha-value>)', // For send button hover
+
+              neutral: 'rgb(var(--neutral) / <alpha-value>)',
+              'neutral-medium': 'rgb(var(--neutral-medium) / <alpha-value>)',
+              'neutral-light': 'rgb(var(--neutral-light) / <alpha-value>)',
+              
+              'base-100': 'rgb(var(--base-100) / <alpha-value>)',
+              'base-200': 'rgb(var(--base-200) / <alpha-value>)',
+              'base-300': 'rgb(var(--base-300) / <alpha-value>)',
+              surface: 'rgb(var(--surface) / <alpha-value>)',
+              error: 'rgb(var(--error) / <alpha-value>)',
+              'error-fg': 'rgb(var(--error-fg) / <alpha-value>)',
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              poppins: ['Poppins', 'sans-serif'],
+            },
+            animation: {
+              'spin-slow': 'spin 3s linear infinite', 
+              'imageShimmerOverlayLight': 'imageShimmerOverlayLight 1.8s linear infinite',
+            },
+            keyframes: {
+              spin: {
+                from: { transform: 'rotate(0deg)' },
+                to: { transform: 'rotate(360deg)' },
+              },
+              imageShimmerOverlayLight: { 
+                '0%': { backgroundPosition: '200% 0' },
+                '100%': { backgroundPosition: '-200% 0' },
+              },
+            },
+          },
+        },
+      }
+    </script>
+    <!-- Custom Tailwind styles & Markdown styles -->
+    <style type="text/tailwindcss">
+      @layer base {
+        :root {
+          --primary: 34 159 220;      /* Sky Blue 500ish - Gradient End */
+          --primary-light: 79 179 229; /* Lighter Sky Blue - User messages */
+          --primary-fg: 255 255 255; 
+          --accent: 168 85 247;       /* Purple 500ish - Main action button, Header Icon, AI Avatar, Gradient Start */
+          --accent-dark: 147 51 234;  /* Purple 600ish - For send button hover */
+          --accent-fg: 255 255 255;
+
+          --neutral: 55 65 81;       /* gray-700 - main text */
+          --neutral-medium: 107 114 128; /* gray-500 - secondary text */
+          --neutral-light: 156 163 175;  /* gray-400 - subtle text, icons */
+
+          --base-100: 248 250 252;   /* custom very light gray, like slate-50 */
+          --base-200: 241 245 249;   /* slate-100 */
+          --base-300: 226 232 240;   /* slate-200 */
+          --surface: 255 255 255;   /* white */
+        
+          --error: 239 68 68; /* red-500 */
+          --error-fg: 255 255 255; /* white for text on error bg */
+        }
+        html, body, #root { @apply h-full overflow-hidden; }
+        body { @apply font-sans bg-base-100 text-neutral m-0; }
+      }
+      @layer components {
+        .chat-messages-container::-webkit-scrollbar { @apply w-1.5; }
+        .chat-messages-container::-webkit-scrollbar-track { @apply bg-base-200 rounded-full; }
+        .chat-messages-container::-webkit-scrollbar-thumb { @apply bg-base-300 rounded-full; }
+        .chat-messages-container::-webkit-scrollbar-thumb:hover { @apply bg-neutral-light; }
+        .chat-messages-container { scrollbar-width: thin; scrollbar-color: theme('colors.base-300') theme('colors.base-200'); }
+
+        .image-skeleton-loader {
+            @apply w-full h-72 bg-base-200 rounded-lg relative overflow-hidden; 
+        }
+        .image-skeleton-overlay {
+            @apply absolute top-0 left-0 w-full h-full;
+            background: linear-gradient(100deg, transparent 25%, rgb(var(--base-300)/0.5) 50%, transparent 75%);
+            background-size: 250% 100%;
+            @apply animate-imageShimmerOverlayLight;
+        }
+        .image-skeleton-text {
+            @apply absolute inset-0 flex items-center justify-center text-sm text-neutral-medium;
+        }
+      }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@^18.2.0",
+          "react-dom/client": "https://esm.sh/react-dom@^18.2.0/client"
+        }
+      }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel" data-type="module">
+      import React, { useState, useCallback, useEffect, useRef } from 'react';
+      import ReactDOM from 'react-dom/client';
+
+      const IMAGE_GEN_TEXT_MODEL_NAME = 'gemini-2.5-flash-preview-05-20'; 
+      const IMAGE_GEN_IMAGE_MODEL_NAME = 'gemini-2.0-flash-preview-image-generation';
+
+      const API_KEYS = [
+          "AIzaSyDSF270Y1VJf1fe4G8ZAuw7bOITbAlal74", 
+          "AIzaSyBx2-nzwDEmvil677vHCnfFmWk0bjc2ktc", 
+          "AIzaSyCP0_JSlzsnNKczFe-dBTZyoyKBwvvP6UE", 
+          "AIzaSyDgEdgBX2VWf2PO4X29haQzISTDTemzuW4"  
+      ];
+      let currentApiKeyIndexForImageGen = 0; 
+      const MAX_API_CALL_ATTEMPTS_IMG_GEN = API_KEYS.length;
+      
+      const PRIMARY_API_KEY = API_KEYS[0]; 
+      if (!PRIMARY_API_KEY) console.error(" ERROR: Primary API Key is not set.");
+      
+      const REFINE_SYSTEM_INSTRUCTION_REALISTIC = `You are an AI prompt enhancer designed for a beginner-friendly text-to-image generation tool. Your responsibility is to enhance user prompts in a way that retains their original language, tone, and intent while making the prompt more visually descriptive and render-friendly. Your enhancement style depends on the complexity of the input. ------------------------------- 📏 Prompt Length Strategy: ------------------------------- 1. If the user's prompt is: - Short, direct, and clear (e.g., "Create now: Ferrari car image") - Includes specific subject and style (e.g., "anime girl cyberpunk style") ➤ Then generate a **simple enhanced prompt (1–3 lines)** that adds light, relevant detail (e.g., color, motion, mood, lighting) without overcomplicating the prompt. The goal is to stay fast and beginner-friendly. 2. If the user's prompt is: - Abstract, artistic, or ambiguous (e.g., "make it dreamy and nostalgic") - Mentions a specific theme, character concept, or film/game/art style (e.g., "create now elon musk ghiblish style image") - Needs environmental, stylistic, or storytelling detail ➤ Then generate a **detailed enhanced prompt (4–6 lines)** that: - Deepens the visual richness - Describes the subject, style, environment, lighting, textures, and composition - Still respects and reflects the user’s original phrasing and intent ------------------------------- 🔒 Rules You Must Follow: ------------------------------- 1. Always preserve key phrases, keywords, and tone (e.g., "create now", "make it look epic"). 2. Do not change the subject, style, or meaning of the original input. 3. Never invent new concepts, characters, or ideas not present in the original. 4. Avoid over-formalizing user’s expressive, casual, or slang-based input. 5. Never output explanations — only the final refined prompt. ------------------------------- 🧪 Examples: ------------------------------- Simple Input → Simple Output: -------------------------------- Input: "Create now: Ferrari car image" Output: "Create now: Ferrari car image — sleek red body, aerodynamic shape, speeding on a race track under sunlight." Input: "anime girl cyberpunk style" Output: "Anime girl in cyberpunk style — glowing neon lights, futuristic city, digital interface in the background." Detailed Input → Detailed Output: -------------------------------- Input: "create now elon musk ghiblish style image" Output: "Create now: Elon Musk in Ghiblish style — dreamy and whimsical, wearing a simple tunic with forest elements. Surrounded by glowing mushrooms and Kodama spirits, in a lush, magical forest. Soft painterly lighting inspired by Studio Ghibli aesthetics." Input: "vintage vampire lord painted in oil" Output: "A vintage oil painting of a vampire lord — pale skin, red eyes, elegant dark cloak with golden trim. Standing in a candle-lit gothic hall, with cracked stone walls and dusty crimson curtains. Shadows and warm candlelight create dramatic contrast." ------------------------------- Make every enhancement useful, balanced, and context-aware. Adapt prompt length and richness based on the user’s input style — never more, never less."`;
+      
+      async function makeApiCallWithRotation(modelName, userPrompt, systemInstructionText = null, isImageGeneration = false, generationConfigOverride = null, attempt = 1) {
+        if (attempt > MAX_API_CALL_ATTEMPTS_IMG_GEN) {
+            console.error("All API keys failed for task after " + MAX_API_CALL_ATTEMPTS_IMG_GEN + " attempts.");
+            throw new Error(`All API keys have been used or failed. Please check your API keys and their quotas.`);
+        }
+        
+        const currentKey = API_KEYS[currentApiKeyIndexForImageGen];
+        const API_URL_BASE = `https://generativelanguage.googleapis.com/v1beta/models/`;
+        const fullApiUrl = `${API_URL_BASE}${modelName}:generateContent?key=${currentKey}`;
+        
+        let defaultTextConfig = { temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 1024 }; 
+        let defaultImageConfig = { responseModalities: ["IMAGE", "TEXT"] }; 
+        let requestBody;
+
+        if (systemInstructionText && !isImageGeneration) { 
+             requestBody = {
+                contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+                systemInstruction: { parts: [{ text: systemInstructionText }] },
+                generationConfig: generationConfigOverride || defaultTextConfig
+            };
+        } else if (isImageGeneration) { 
+            requestBody = { 
+                contents: [{ parts: [{ text: userPrompt }] }], 
+                generationConfig: { ...defaultImageConfig, ...(generationConfigOverride || {}) }
+            };
+        } else { 
+             requestBody = {
+                contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+                generationConfig: generationConfigOverride || defaultTextConfig
+            };
+        }
+        
+        try {
+            const response = await fetch(fullApiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
+            const responseData = await response.json().catch(() => ({ error: { message: "Received non-JSON response from API. Check network or API endpoint." } }));
+
+            if (!response.ok) {
+                const errorMessageText = responseData.error?.message?.toLowerCase() || "";
+                if (response.status === 429 || 
+                    (response.status === 400 && (errorMessageText.includes("api key not valid") || errorMessageText.includes("key is invalid"))) ||
+                    (response.status === 403 && (errorMessageText.includes("permission denied") || errorMessageText.includes("key is restricted")))
+                ) {
+                    const previousKeySnippet = currentKey.substring(0,10) + "..." + currentKey.slice(-4);
+                    currentApiKeyIndexForImageGen = (currentApiKeyIndexForImageGen + 1) % API_KEYS.length;
+                    const nextKeySnippet = API_KEYS[currentApiKeyIndexForImageGen].substring(0,10) + "..." + API_KEYS[currentApiKeyIndexForImageGen].slice(-4);
+                    
+                    console.warn(`API Task: Key ${previousKeySnippet} failed (Status: ${response.status}). Rotating to key index ${currentApiKeyIndexForImageGen} (${nextKeySnippet}). Attempt ${attempt}/${MAX_API_CALL_ATTEMPTS_IMG_GEN}.`);
+                    return makeApiCallWithRotation(modelName, userPrompt, systemInstructionText, isImageGeneration, generationConfigOverride, attempt + 1);
+                }
+                
+                let detail = `API Error (${response.status}): ${responseData.error?.message || response.statusText || "Unknown API error."}`;
+                if (String(responseData.error?.message).includes("User location is not supported")) detail = "API access from your current location is not supported by the model provider.";
+                if (String(responseData.error?.message).includes("model is not supported for image generation")) detail = `Model '${modelName}' is not supported for image generation. Did you use the correct model?`;
+
+                throw new Error(detail);
+            }
+            
+            if (isImageGeneration) {
+                const candidate = responseData.candidates?.[0];
+                if (!candidate) {
+                    console.error("Image Gen Fail: No candidate. Full response:", JSON.stringify(responseData, null, 2));
+                    throw new Error("No candidate found in API response for image generation.");
+                }
+
+                if (candidate.finishReason === "SAFETY" || responseData.promptFeedback?.blockReason) {
+                    const reason = responseData.promptFeedback?.blockReason || candidate.finishReason || "Safety";
+                    let safetyDetails = responseData.promptFeedback?.safetyRatings?.map(r => `${r.category.replace('HARM_CATEGORY_','')} (${r.probability})`).join(', ') || "Details not provided.";
+                    throw new Error(`Image generation blocked due to safety policies. Reason: ${reason}. Details: ${safetyDetails}`);
+                }
+                
+                const imgPart = candidate.content?.parts?.find(p => p.inlineData?.mimeType?.startsWith('image/'));
+                if (imgPart && imgPart.inlineData.data) {
+                    return imgPart.inlineData.data; 
+                }
+                
+                const textPart = candidate.content?.parts?.find(p => p.text);
+                if (textPart && textPart.text.trim()) {
+                    console.warn("Image Gen: No image data, but found text part:", textPart.text);
+                    if (textPart.text.toLowerCase().includes("unable to generate image") || 
+                        textPart.text.toLowerCase().includes("cannot generate an image") ||
+                        textPart.text.toLowerCase().includes("i am unable to create this image")) {
+                        throw new Error(`API indicated inability to generate image: "${textPart.text.trim()}"`);
+                    }
+                    throw new Error(`Image not found, but API said: "${textPart.text.trim()}". Original error: Valid image data not found in API response.`);
+                }
+                
+                console.error("Image Gen Fail: No image data and no text part. Candidate content:", JSON.stringify(candidate.content, null, 2));
+                throw new Error("Valid image data not found in API response. Response structure might have changed or generation failed silently.");
+
+            } else { 
+                const candidate = responseData.candidates?.[0];
+                 if (!candidate) throw new Error("No candidate found in API response for text generation.");
+
+                if (candidate.finishReason === "SAFETY" || responseData.promptFeedback?.blockReason) {
+                    const reason = responseData.promptFeedback?.blockReason || candidate.finishReason || "Safety";
+                    let safetyDetails = responseData.promptFeedback?.safetyRatings?.map(r => `${r.category.replace('HARM_CATEGORY_','')} (${r.probability})`).join(', ') || "Details not provided.";
+                    throw new Error(`Text generation blocked due to safety policies. Reason: ${reason}. Details: ${safetyDetails}`);
+                }
+
+                if (candidate.content?.parts?.[0]?.text) return candidate.content.parts[0].text.trim();
+                throw new Error("Failed to extract text from API response. Check response structure.");
+            }
+        } catch (error) {
+            console.error(`Error in makeApiCallWithRotation (attempt ${attempt}, key index ${currentApiKeyIndexForImageGen}, model ${modelName}):`, error);
+            throw error;
+        }
+      }
+
+      const SparklesIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" {...props}><path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" /></svg>);
+
+      const ImageGenMessageItem = ({ message, onRegenerateImage, isProcessing }) => { 
+        const isUser = message.role === 'user'; 
+        const showAvatarAnimation = !isUser && message.isLoadingImage;
+        const canRegenerateThisMessage = !isUser && (message.imageGenerationError || message.generatedImageB64);
+
+        const handleDownloadImage = () => {
+            if (message.generatedImageB64 && message.userImageRequestPrompt) {
+                const link = document.createElement('a');
+                link.href = `data:image/png;base64,${message.generatedImageB64}`;
+                const fileName = message.userImageRequestPrompt.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').substring(0,30);
+                link.download = `oracle_ai_image_${fileName || 'generated'}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        };
+        
+        const AiAvatar = () => ( 
+            <div className={`flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-accent to-purple-600 flex items-center justify-center text-white shadow-md transition-opacity duration-300 ${showAvatarAnimation ? 'opacity-75 animate-pulse' : 'opacity-100'}`} > 
+                <SparklesIcon className={`w-5 h-5 ${showAvatarAnimation ? 'animate-spin-slow' : ''}`} /> 
+            </div>
+        );
+
+        if (isUser) { 
+            return (
+                <div className="flex items-end justify-end">
+                    <div className="px-4 py-3 rounded-2xl bg-primary-light text-primary-fg rounded-br-lg max-w-[85%] sm:max-w-[80%]">
+                        <p className="text-base whitespace-pre-wrap">{message.promptText}</p>
+                    </div>
+                </div>
+            );
+        }
+        
+        return (
+            <div className="flex flex-col items-start">
+                <div className="flex items-end space-x-3 w-full">
+                    <AiAvatar />
+                    {message.isLoadingImage && (
+                        <div className="p-2 rounded-2xl bg-surface border border-base-300 text-neutral rounded-bl-lg w-full max-w-md"> 
+                            <div className="image-skeleton-loader">
+                                <div className="image-skeleton-overlay"></div>
+                                <p className="image-skeleton-text">Generating image...</p>
+                            </div>
+                        </div>
+                    )}
+                    {message.generatedImageB64 && (
+                        <div className={`relative p-1.5 rounded-2xl bg-surface border border-base-300 text-neutral rounded-bl-lg max-w-[85%] sm:max-w-[75%]`}>
+                            <img 
+                                src={`data:image/png;base64,${message.generatedImageB64}`} 
+                                alt={message.userImageRequestPrompt || "Generated by Oracle AI"}
+                                className="block max-w-full w-auto max-h-80 md:max-h-96 rounded-lg border border-base-300" 
+                            />
+                        </div>
+                    )}
+                    {message.imageGenerationError && (
+                         <div className={`px-4 py-3 rounded-2xl bg-red-100 text-red-700 rounded-bl-lg max-w-[85%] sm:max-w-[75%] border border-red-200`}>
+                            <p className="font-semibold">Image generation failed:</p>
+                            <p className="text-sm whitespace-pre-wrap mt-1">{message.imageGenerationError}</p>
+                        </div>
+                    )}
+                </div>
+                {!isUser && (message.generatedImageB64 || message.imageGenerationError) && (
+                    <div className="flex space-x-3 mt-2.5 pl-12">
+                        {message.generatedImageB64 && (
+                             <button
+                                onClick={handleDownloadImage}
+                                className="p-2 rounded-lg bg-accent/10 hover:bg-accent/25 text-accent flex items-center space-x-1.5 text-xs transition-colors disabled:opacity-60"
+                                title="Download image"
+                                disabled={isProcessing}
+                            >
+                                <i className="fas fa-download text-sm"></i>
+                                <span>Download</span>
+                            </button>
+                        )}
+                        {canRegenerateThisMessage && (
+                            <button
+                                onClick={() => onRegenerateImage(message.id)}
+                                className="p-2 rounded-lg bg-primary/10 hover:bg-primary/25 text-primary flex items-center space-x-1.5 text-xs transition-colors disabled:opacity-60"
+                                aria-label="Regenerate image"
+                                disabled={isProcessing}
+                            >
+                                <i className="fas fa-sync-alt text-sm"></i>
+                                <span>Regenerate</span>
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+      };
+
+      const ImageGenInterface = ({ messages, onRequestImageGeneration, isProcessing, globalError, onRegenerateImage, onClearHistory }) => {
+        const [inputText, setInputText] = useState('');
+        const messagesEndRef = useRef(null);
+        const textareaRef = useRef(null);
+
+        useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+        
+        useEffect(() => { 
+          if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 128)}px`;
+          }
+        }, [inputText]);
+
+        const handleFormSubmit = (e) => { 
+            e.preventDefault(); 
+            if (!inputText.trim() || isProcessing) return; 
+            onRequestImageGeneration(inputText.trim()); 
+            setInputText(''); 
+        };
+        
+        const handleTextareaKeyDown = (e) => {
+            if (e.key === 'Enter') {
+                const isMobileView = window.innerWidth < 768; 
+                if (e.shiftKey) {
+                    return; 
+                }
+                if (!isMobileView) { 
+                    e.preventDefault();
+                    handleFormSubmit(e); 
+                }
+            }
+        };
+
+
+        return (
+          <div className="w-full h-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl sm:mx-auto bg-base-100 sm:rounded-2xl flex flex-col overflow-hidden">
+            <header className="p-4 md:p-5 bg-surface flex items-center justify-between flex-shrink-0 shadow-sm"> 
+                <div className="flex items-center space-x-3"> 
+                    <SparklesIcon className="w-8 h-8 text-accent" /> 
+                    <h3 className="text-xl md:text-2xl font-semibold font-poppins bg-gradient-to-r from-accent to-primary bg-clip-text text-transparent">Oracle Image Gen</h3> 
+                </div> 
+                <button 
+                    onClick={onClearHistory} 
+                    className="text-xs font-medium text-neutral-medium hover:text-error hover:bg-red-500/10 transition-colors px-3 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1.5" 
+                    aria-label="Clear" 
+                    disabled={isProcessing || messages.length === 0}
+                >
+                    <i className="fas fa-trash-alt"></i>
+                    <span>Clear</span>
+                </button> 
+            </header>
+            <div className="flex-grow p-4 md:p-6 space-y-5 md:space-y-6 overflow-y-auto chat-messages-container relative" aria-live="polite"> 
+                 {globalError && ( 
+                    <div className="p-4 mb-4 rounded-lg bg-error text-error-fg shadow-md flex items-start space-x-3"> 
+                        <i className="fas fa-exclamation-triangle mt-1"></i>
+                        <div>
+                            <p className="font-semibold">Error:</p>
+                            <p className="text-sm">{globalError}</p>
+                        </div>
+                    </div> 
+                )}
+                {messages.length === 0 && !isProcessing && !globalError && ( 
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-4"> 
+                        <i className="fas fa-image fa-3x text-base-300 opacity-80 mb-4"></i>
+                        <p className="text-2xl font-semibold text-neutral-light opacity-80">Describe the image you want to create</p> 
+                        <p className="text-sm text-neutral-light opacity-60 mt-1">Unleash your imagination below...</p>
+                    </div> 
+                )} 
+                {messages.map((msg) => (
+                    <ImageGenMessageItem 
+                        key={msg.id} 
+                        message={msg} 
+                        onRegenerateImage={onRegenerateImage} 
+                        isProcessing={isProcessing}
+                    />
+                ))} 
+                <div ref={messagesEndRef} /> 
+            </div>
+            
+            <div className="p-4 md:p-5 border-t border-base-300 bg-surface flex-shrink-0">
+                <form onSubmit={handleFormSubmit} className="flex items-center space-x-2 md:space-x-3"> 
+                    <div className="flex-grow flex items-center bg-surface rounded-xl border border-base-300 focus-within:ring-1 focus-within:ring-accent focus-within:border-accent transition-all duration-200 shadow-sm">
+                        <textarea 
+                            ref={textareaRef}
+                            value={inputText} 
+                            onChange={(e) => setInputText(e.target.value)} 
+                            onKeyDown={handleTextareaKeyDown}
+                            placeholder="Enter your idea..."
+                            rows={1} 
+                            className="flex-grow px-4 py-3 text-base bg-transparent focus:outline-none resize-none placeholder-neutral-light min-h-[3rem]"
+                            disabled={isProcessing} 
+                        /> 
+                    </div>
+                    <button 
+                        type="submit"
+                        disabled={isProcessing || !inputText.trim()}
+                        className={`font-semibold w-12 h-12 rounded-xl shadow-md flex items-center justify-center transition-all duration-150 ease-in-out 
+                                    bg-gradient-to-br from-accent to-purple-600 text-accent-fg
+                                    hover:from-accent-dark hover:to-purple-700  /* Added hover effect */
+                                    disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-accent disabled:hover:to-purple-600 /* Reset hover on disabled */
+                                  `}
+                        aria-label="Generate Image"
+                        title="Generate Image"
+                    > 
+                        <i className="fas fa-wand-magic-sparkles text-lg"></i>
+                    </button> 
+                </form>
+            </div>
+          </div>);
+      };
+
+      const App = () => {
+        const [imageGenMessages, setImageGenMessages] = useState([]); 
+        
+        const [isProcessing, setIsProcessing] = useState(false); 
+        const [globalError, setGlobalError] = useState(null);
+        
+        useEffect(() => { 
+            if (!PRIMARY_API_KEY) { 
+                setGlobalError("Primary API Key is not configured. Please set API_KEYS array."); 
+            }
+             // Log to confirm app is running and background tasks *should* work
+            const handleVisibilityChange = () => {
+              if (document.visibilityState === 'visible') {
+                console.log("Tab is visible again");
+              } else {
+                console.log("Tab is hidden, API calls will continue if initiated.");
+              }
+            };
+            document.addEventListener("visibilitychange", handleVisibilityChange);
+            return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+
+        }, []);
+
+        const handleClearHistory = useCallback(() => { 
+            setImageGenMessages([]); 
+            setGlobalError(null);
+            console.log("Image generation history cleared.");
+        }, []);
+
+        const triggerImageGenerationProcess = async (imagePromptText, messageIdToUpdate) => {
+            console.log("Starting image generation for prompt:", imagePromptText);
+            setIsProcessing(true);
+            setGlobalError(null); 
+            setImageGenMessages(prev => prev.map(m => 
+                m.id === messageIdToUpdate ? 
+                { ...m, isLoadingImage: true, imageGenerationError: null, generatedImageB64: null } : m
+            ));
+
+            try {
+                if (!imagePromptText || imagePromptText.length < 3) {
+                    throw new Error("Image prompt is too short or empty.");
+                }
+
+                const translationPrompt = `Translate the following text to English if it's not already in English. If it's already in English, return it unchanged. Output only the translated text: "${imagePromptText}"`;
+                const translatedTextRaw = await makeApiCallWithRotation(IMAGE_GEN_TEXT_MODEL_NAME, translationPrompt, null, false);
+                const translatedText = translatedTextRaw.replace(/^"(.*)"$/, '$1').trim();
+                
+                if (!translatedText) {
+                    throw new Error("Translation resulted in an empty prompt.");
+                }
+
+                const enhancedPrompt = await makeApiCallWithRotation(IMAGE_GEN_TEXT_MODEL_NAME, translatedText, REFINE_SYSTEM_INSTRUCTION_REALISTIC, false);
+                
+                if (!enhancedPrompt || enhancedPrompt.toLowerCase().includes("please provide") || enhancedPrompt.toLowerCase().includes("i need a prompt")) {
+                     throw new Error(`Failed to enhance prompt. Model said: "${enhancedPrompt}"`);
+                }
+
+                const generatedImageDataB64 = await makeApiCallWithRotation(IMAGE_GEN_IMAGE_MODEL_NAME, enhancedPrompt, null, true);
+
+                setImageGenMessages(prev => prev.map(m => 
+                    m.id === messageIdToUpdate ? 
+                    { ...m, isLoadingImage: false, generatedImageB64: generatedImageDataB64, imageGenerationError: null, userImageRequestPrompt: imagePromptText } : m 
+                ));
+                console.log("Image generation successful for prompt:", imagePromptText);
+
+            } catch (err) {
+                console.error("Image Generation Pipeline Error:", err);
+                const errorMsg = err.message || "An unknown error occurred during image generation.";
+                setImageGenMessages(prev => prev.map(m => 
+                    m.id === messageIdToUpdate ? 
+                    { ...m, isLoadingImage: false, imageGenerationError: errorMsg, generatedImageB64: null, userImageRequestPrompt: imagePromptText } : m
+                ));
+                console.log("Image generation failed for prompt:", imagePromptText, "Error:", errorMsg);
+            } finally {
+                setIsProcessing(false);
+                console.log("Finished image generation attempt for prompt:", imagePromptText);
+            }
+        };
+        
+        const handleRequestImageGeneration = useCallback(async (promptText) => {
+            if (!promptText.trim()) return;
+            if (!PRIMARY_API_KEY) { setGlobalError("API Key is not configured."); return; }
+            
+            const userPromptMessage = {
+                id: Date.now().toString() + '_user_prompt',
+                role: 'user',
+                promptText: promptText, 
+                timestamp: new Date(),
+            };
+            
+            const imageLoaderId = Date.now().toString() + '_model_image_loader';
+            const imageLoaderMessage = { 
+                id: imageLoaderId, 
+                role: 'model', 
+                timestamp: new Date(),
+                isLoadingImage: true, 
+                userImageRequestPrompt: promptText 
+            };
+
+            setImageGenMessages(prev => [...prev, userPromptMessage, imageLoaderMessage]);
+            triggerImageGenerationProcess(promptText, imageLoaderId); // No await here, let it run in background
+        }, []); 
+
+
+        const handleRegenerateFailedImage = useCallback(async (failedAiMessageId) => {
+            if (!PRIMARY_API_KEY) { setGlobalError("API Key is not configured."); return; }
+            
+            const failedMsg = imageGenMessages.find(m => m.id === failedAiMessageId && m.role === 'model');
+            
+            if (!failedMsg || !failedMsg.userImageRequestPrompt) { 
+                 setGlobalError("Could not find the original prompt for regeneration."); 
+                 return;
+            }
+            
+            const originalPromptText = failedMsg.userImageRequestPrompt;
+            
+            triggerImageGenerationProcess(originalPromptText, failedAiMessageId); // No await here
+        }, [imageGenMessages]);
+
+
+        return (
+          <div className="h-full bg-gradient-to-br from-sky-100 via-teal-50 to-purple-100 text-neutral flex flex-col font-sans sm:p-4 md:p-6 lg:p-8">
+            <ImageGenInterface 
+                messages={imageGenMessages} 
+                onRequestImageGeneration={handleRequestImageGeneration}
+                isProcessing={isProcessing}
+                globalError={globalError} 
+                onRegenerateImage={handleRegenerateFailedImage} 
+                onClearHistory={handleClearHistory} 
+            />
+          </div>
+        );
+      };
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<React.StrictMode><App /></React.StrictMode>);
+    </script>
+  </body>
+</html>
