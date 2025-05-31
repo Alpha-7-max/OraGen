@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" /> 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OraGen</title>
+    <title>OraGen Enhanced V6</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -14,11 +14,11 @@
           extend: {
             colors: {
               primary: 'rgb(var(--primary) / <alpha-value>)', 
-              'primary-light': 'rgb(var(--primary-light) / <alpha-value>)', 
+              'primary-light': 'rgb(var(--primary-light) / <alpha-value>)', /* User message background */
               'primary-fg': 'rgb(var(--primary-fg) / <alpha-value>)',
               accent: 'rgb(var(--accent) / <alpha-value>)',
               'accent-fg': 'rgb(var(--accent-fg) / <alpha-value>)',
-              'accent-dark': 'rgb(var(--accent-dark) / <alpha-value>)', // For send button hover
+              'accent-dark': 'rgb(var(--accent-dark) / <alpha-value>)', 
 
               neutral: 'rgb(var(--neutral) / <alpha-value>)',
               'neutral-medium': 'rgb(var(--neutral-medium) / <alpha-value>)',
@@ -36,8 +36,11 @@
               poppins: ['Poppins', 'sans-serif'],
             },
             animation: {
-              'spin-slow': 'spin 3s linear infinite', 
+              'spin-slow': 'spin 1s linear infinite', 
               'imageShimmerOverlayLight': 'imageShimmerOverlayLight 1.8s linear infinite',
+              'blink-fast': 'blink-fast 0.5s linear infinite', 
+              'modal-fade-in': 'modal-fade-in 0.3s ease-out',
+              'modal-content-scale-up': 'modal-content-scale-up 0.3s ease-out',
             },
             keyframes: {
               spin: {
@@ -47,6 +50,18 @@
               imageShimmerOverlayLight: { 
                 '0%': { backgroundPosition: '200% 0' },
                 '100%': { backgroundPosition: '-200% 0' },
+              },
+              'blink-fast': { 
+                '0%, 100%': { opacity: '1' },
+                '50%': { opacity: '0.3' },
+              },
+              'modal-fade-in': {
+                'from': { opacity: '0' },
+                'to': { opacity: '1' },
+              },
+              'modal-content-scale-up': {
+                'from': { opacity: '0', transform: 'scale(0.95)' },
+                'to': { opacity: '1', transform: 'scale(1)' },
               },
             },
           },
@@ -58,7 +73,7 @@
       @layer base {
         :root {
           --primary: 34 159 220;      /* Sky Blue 500ish - Gradient End */
-          --primary-light: 79 179 229; /* Lighter Sky Blue - User messages */
+          --primary-light: 59 130 246; /* NEW: Tailwind Blue-500 for user messages */
           --primary-fg: 255 255 255; 
           --accent: 168 85 247;       /* Purple 500ish - Main action button, Header Icon, AI Avatar, Gradient Start */
           --accent-dark: 147 51 234;  /* Purple 600ish - For send button hover */
@@ -91,8 +106,16 @@
         }
         .image-skeleton-overlay {
             @apply absolute top-0 left-0 w-full h-full;
-            background: linear-gradient(100deg, transparent 25%, rgb(var(--base-300)/0.5) 50%, transparent 75%);
-            background-size: 250% 100%;
+            background: linear-gradient(
+              100deg, 
+              transparent 15%, 
+              rgba(249, 168, 212, 0.05) 30%, 
+              rgba(216, 180, 254, 0.05) 40%, 
+              rgba(94, 234, 212, 0.05) 50%,  
+              rgba(125, 211, 252, 0.05) 60%, 
+              transparent 85%
+            );
+            background-size: 250% 100%; 
             @apply animate-imageShimmerOverlayLight;
         }
         .image-skeleton-text {
@@ -247,9 +270,50 @@
 
       const SparklesIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" {...props}><path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" /></svg>);
 
-      const ImageGenMessageItem = ({ message, onRegenerateImage, isProcessing }) => { 
+      const ImagePreviewModal = ({ isOpen, imageSrc, onClose }) => {
+        if (!isOpen) return null;
+
+        useEffect(() => {
+          const handleKeyDown = (event) => {
+            if (event.key === 'Escape') {
+              onClose();
+            }
+          };
+          document.addEventListener('keydown', handleKeyDown);
+          return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+          };
+        }, [onClose]);
+
+        return (
+          <div 
+            className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-modal-fade-in"
+            onClick={onClose} 
+          >
+            <div 
+              className="relative bg-surface p-2 rounded-lg shadow-2xl animate-modal-content-scale-up"
+              onClick={(e) => e.stopPropagation()} 
+            >
+              <img 
+                src={`data:image/png;base64,${imageSrc}`} 
+                alt="Preview" 
+                className="block object-contain rounded"
+                style={{ maxWidth: 'calc(90vw - 1rem)', maxHeight: 'calc(90vh - 1rem)' }} // Accounts for p-2 (0.5rem each side) on parent
+              />
+              <button
+                onClick={onClose}
+                className="absolute -top-4 -right-4 bg-error text-error-fg rounded-full w-9 h-9 flex items-center justify-center shadow-lg hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-error-fg focus:ring-offset-2 focus:ring-offset-black/50"
+                aria-label="Close preview"
+              >
+                <i className="fas fa-times text-base"></i>
+              </button>
+            </div>
+          </div>
+        );
+      };
+
+      const ImageGenMessageItem = ({ message, onRegenerateImage, isProcessing, onOpenImagePreview }) => { 
         const isUser = message.role === 'user'; 
-        const showAvatarAnimation = !isUser && message.isLoadingImage;
         const canRegenerateThisMessage = !isUser && (message.imageGenerationError || message.generatedImageB64);
 
         const handleDownloadImage = () => {
@@ -257,35 +321,40 @@
                 const link = document.createElement('a');
                 link.href = `data:image/png;base64,${message.generatedImageB64}`;
                 const fileName = message.userImageRequestPrompt.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').substring(0,30);
-                link.download = `oracle_ai_image_${fileName || 'generated'}.png`;
+                link.download = `oragen_image_${fileName || 'generated'}.png`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
             }
         };
         
-        const AiAvatar = () => ( 
-            <div className={`flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-accent to-purple-600 flex items-center justify-center text-white shadow-md transition-opacity duration-300 ${showAvatarAnimation ? 'opacity-75 animate-pulse' : 'opacity-100'}`} > 
-                <SparklesIcon className={`w-5 h-5 ${showAvatarAnimation ? 'animate-spin-slow' : ''}`} /> 
-            </div>
-        );
+        const AiAvatar = () => {
+            const baseClasses = "flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-accent to-purple-600 flex items-center justify-center text-white shadow-md opacity-100 transition-opacity duration-300";
+            return (
+                <div className={baseClasses} > 
+                    <SparklesIcon className="w-5 h-5" /> 
+                </div>
+            );
+        };
 
         if (isUser) { 
             return (
                 <div className="flex items-end justify-end">
-                    <div className="px-4 py-3 rounded-2xl bg-primary-light text-primary-fg rounded-br-lg max-w-[85%] sm:max-w-[80%]">
+                    <div className="px-4 py-3 rounded-2xl bg-primary-light text-primary-fg rounded-br-lg max-w-[85%] sm:max-w-[80%] shadow">
                         <p className="text-base whitespace-pre-wrap">{message.promptText}</p>
                     </div>
                 </div>
             );
         }
         
+        const aiMessageCardBaseClasses = "rounded-2xl bg-surface border border-base-300 text-neutral rounded-bl-lg w-full max-w-md shadow";
+
         return (
             <div className="flex flex-col items-start">
                 <div className="flex items-end space-x-3 w-full">
                     <AiAvatar />
                     {message.isLoadingImage && (
-                        <div className="p-2 rounded-2xl bg-surface border border-base-300 text-neutral rounded-bl-lg w-full max-w-md"> 
+                        <div className={`p-2 ${aiMessageCardBaseClasses}`}> 
                             <div className="image-skeleton-loader">
                                 <div className="image-skeleton-overlay"></div>
                                 <p className="image-skeleton-text">Generating image...</p>
@@ -293,16 +362,17 @@
                         </div>
                     )}
                     {message.generatedImageB64 && (
-                        <div className={`relative p-1.5 rounded-2xl bg-surface border border-base-300 text-neutral rounded-bl-lg max-w-[85%] sm:max-w-[75%]`}>
+                        <div className={`p-2 ${aiMessageCardBaseClasses}`}>
                             <img 
                                 src={`data:image/png;base64,${message.generatedImageB64}`} 
-                                alt={message.userImageRequestPrompt || "Generated by Oracle AI"}
-                                className="block max-w-full w-auto max-h-80 md:max-h-96 rounded-lg border border-base-300" 
+                                alt={message.userImageRequestPrompt || "Generated by OraGen AI"}
+                                className="block w-full h-72 object-cover rounded-lg border border-base-200 cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => onOpenImagePreview(message.generatedImageB64)}
                             />
                         </div>
                     )}
                     {message.imageGenerationError && (
-                         <div className={`px-4 py-3 rounded-2xl bg-red-100 text-red-700 rounded-bl-lg max-w-[85%] sm:max-w-[75%] border border-red-200`}>
+                         <div className={`px-4 py-3 bg-red-100 text-red-700 border-red-200 ${aiMessageCardBaseClasses}`}>
                             <p className="font-semibold">Image generation failed:</p>
                             <p className="text-sm whitespace-pre-wrap mt-1">{message.imageGenerationError}</p>
                         </div>
@@ -338,7 +408,7 @@
         );
       };
 
-      const ImageGenInterface = ({ messages, onRequestImageGeneration, isProcessing, globalError, onRegenerateImage, onClearHistory }) => {
+      const ImageGenInterface = ({ messages, onRequestImageGeneration, isProcessing, globalError, onRegenerateImage, onClearHistory, onOpenImagePreview }) => {
         const [inputText, setInputText] = useState('');
         const messagesEndRef = useRef(null);
         const textareaRef = useRef(null);
@@ -413,6 +483,7 @@
                         message={msg} 
                         onRegenerateImage={onRegenerateImage} 
                         isProcessing={isProcessing}
+                        onOpenImagePreview={onOpenImagePreview}
                     />
                 ))} 
                 <div ref={messagesEndRef} /> 
@@ -437,8 +508,8 @@
                         disabled={isProcessing || !inputText.trim()}
                         className={`font-semibold w-12 h-12 rounded-xl shadow-md flex items-center justify-center transition-all duration-150 ease-in-out 
                                     bg-gradient-to-br from-accent to-purple-600 text-accent-fg
-                                    hover:from-accent-dark hover:to-purple-700  /* Added hover effect */
-                                    disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-accent disabled:hover:to-purple-600 /* Reset hover on disabled */
+                                    hover:from-accent-dark hover:to-purple-700  
+                                    disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-accent disabled:hover:to-purple-600 
                                   `}
                         aria-label="Generate Image"
                         title="Generate Image"
@@ -452,20 +523,32 @@
 
       const App = () => {
         const [imageGenMessages, setImageGenMessages] = useState([]); 
-        
         const [isProcessing, setIsProcessing] = useState(false); 
         const [globalError, setGlobalError] = useState(null);
+
+        const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+        const [previewImageSrc, setPreviewImageSrc] = useState(null);
+
+        const handleOpenImagePreview = useCallback((imageDataB64) => {
+          setPreviewImageSrc(imageDataB64);
+          setIsPreviewModalOpen(true);
+        }, []);
+
+        const handleCloseImagePreview = useCallback(() => {
+          setIsPreviewModalOpen(false);
+          // Delay clearing src slightly to allow fade-out animation if any
+          setTimeout(() => setPreviewImageSrc(null), 300); 
+        }, []);
         
         useEffect(() => { 
             if (!PRIMARY_API_KEY) { 
                 setGlobalError("Primary API Key is not configured. Please set API_KEYS array."); 
             }
-             // Log to confirm app is running and background tasks *should* work
             const handleVisibilityChange = () => {
               if (document.visibilityState === 'visible') {
-                console.log("Tab is visible again");
+                console.log("OraGen: Tab is visible again");
               } else {
-                console.log("Tab is hidden, API calls will continue if initiated.");
+                console.log("OraGen: Tab is hidden, API calls will continue if initiated.");
               }
             };
             document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -476,11 +559,11 @@
         const handleClearHistory = useCallback(() => { 
             setImageGenMessages([]); 
             setGlobalError(null);
-            console.log("Image generation history cleared.");
+            console.log("OraGen: Image generation history cleared.");
         }, []);
 
         const triggerImageGenerationProcess = async (imagePromptText, messageIdToUpdate) => {
-            console.log("Starting image generation for prompt:", imagePromptText);
+            console.log("OraGen: Starting image generation for prompt:", imagePromptText);
             setIsProcessing(true);
             setGlobalError(null); 
             setImageGenMessages(prev => prev.map(m => 
@@ -513,19 +596,19 @@
                     m.id === messageIdToUpdate ? 
                     { ...m, isLoadingImage: false, generatedImageB64: generatedImageDataB64, imageGenerationError: null, userImageRequestPrompt: imagePromptText } : m 
                 ));
-                console.log("Image generation successful for prompt:", imagePromptText);
+                console.log("OraGen: Image generation successful for prompt:", imagePromptText);
 
             } catch (err) {
-                console.error("Image Generation Pipeline Error:", err);
+                console.error("OraGen: Image Generation Pipeline Error:", err);
                 const errorMsg = err.message || "An unknown error occurred during image generation.";
                 setImageGenMessages(prev => prev.map(m => 
                     m.id === messageIdToUpdate ? 
                     { ...m, isLoadingImage: false, imageGenerationError: errorMsg, generatedImageB64: null, userImageRequestPrompt: imagePromptText } : m
                 ));
-                console.log("Image generation failed for prompt:", imagePromptText, "Error:", errorMsg);
+                console.log("OraGen: Image generation failed for prompt:", imagePromptText, "Error:", errorMsg);
             } finally {
                 setIsProcessing(false);
-                console.log("Finished image generation attempt for prompt:", imagePromptText);
+                console.log("OraGen: Finished image generation attempt for prompt:", imagePromptText);
             }
         };
         
@@ -550,7 +633,7 @@
             };
 
             setImageGenMessages(prev => [...prev, userPromptMessage, imageLoaderMessage]);
-            triggerImageGenerationProcess(promptText, imageLoaderId); // No await here, let it run in background
+            triggerImageGenerationProcess(promptText, imageLoaderId); 
         }, []); 
 
 
@@ -566,21 +649,29 @@
             
             const originalPromptText = failedMsg.userImageRequestPrompt;
             
-            triggerImageGenerationProcess(originalPromptText, failedAiMessageId); // No await here
+            triggerImageGenerationProcess(originalPromptText, failedAiMessageId); 
         }, [imageGenMessages]);
 
 
         return (
-          <div className="h-full bg-gradient-to-br from-sky-100 via-teal-50 to-purple-100 text-neutral flex flex-col font-sans sm:p-4 md:p-6 lg:p-8">
-            <ImageGenInterface 
-                messages={imageGenMessages} 
-                onRequestImageGeneration={handleRequestImageGeneration}
-                isProcessing={isProcessing}
-                globalError={globalError} 
-                onRegenerateImage={handleRegenerateFailedImage} 
-                onClearHistory={handleClearHistory} 
+          <>
+            <div className="h-full bg-gradient-to-br from-sky-100 via-teal-50 to-purple-100 text-neutral flex flex-col font-sans sm:p-4 md:p-6 lg:p-8">
+              <ImageGenInterface 
+                  messages={imageGenMessages} 
+                  onRequestImageGeneration={handleRequestImageGeneration}
+                  isProcessing={isProcessing}
+                  globalError={globalError} 
+                  onRegenerateImage={handleRegenerateFailedImage} 
+                  onClearHistory={handleClearHistory} 
+                  onOpenImagePreview={handleOpenImagePreview}
+              />
+            </div>
+            <ImagePreviewModal 
+              isOpen={isPreviewModalOpen}
+              imageSrc={previewImageSrc}
+              onClose={handleCloseImagePreview}
             />
-          </div>
+          </>
         );
       };
 
