@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" /> 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OraGen Enhanced V6</title>
+    <title>OraGen Model & UI Update</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -14,7 +14,7 @@
           extend: {
             colors: {
               primary: 'rgb(var(--primary) / <alpha-value>)', 
-              'primary-light': 'rgb(var(--primary-light) / <alpha-value>)', /* User message background */
+              'primary-light': 'rgb(var(--primary-light) / <alpha-value>)', 
               'primary-fg': 'rgb(var(--primary-fg) / <alpha-value>)',
               accent: 'rgb(var(--accent) / <alpha-value>)',
               'accent-fg': 'rgb(var(--accent-fg) / <alpha-value>)',
@@ -37,10 +37,10 @@
             },
             animation: {
               'spin-slow': 'spin 1s linear infinite', 
-              'imageShimmerOverlayLight': 'imageShimmerOverlayLight 1.8s linear infinite',
+              'imageShimmerOverlayLight': 'imageShimmerOverlayLight 1s linear infinite', 
               'blink-fast': 'blink-fast 0.5s linear infinite', 
-              'modal-fade-in': 'modal-fade-in 0.3s ease-out',
-              'modal-content-scale-up': 'modal-content-scale-up 0.3s ease-out',
+              'modal-fade-in': 'modal-fade-in 0.3s ease-out forwards',
+              'modal-fade-out': 'modal-fade-out 0.3s ease-in forwards',
             },
             keyframes: {
               spin: {
@@ -56,12 +56,12 @@
                 '50%': { opacity: '0.3' },
               },
               'modal-fade-in': {
-                'from': { opacity: '0' },
-                'to': { opacity: '1' },
+                '0%': { opacity: '0', transform: 'scale(0.95)' },
+                '100%': { opacity: '1', transform: 'scale(1)' },
               },
-              'modal-content-scale-up': {
-                'from': { opacity: '0', transform: 'scale(0.95)' },
-                'to': { opacity: '1', transform: 'scale(1)' },
+              'modal-fade-out': {
+                '0%': { opacity: '1', transform: 'scale(1)' },
+                '100%': { opacity: '0', transform: 'scale(0.95)' },
               },
             },
           },
@@ -72,24 +72,24 @@
     <style type="text/tailwindcss">
       @layer base {
         :root {
-          --primary: 34 159 220;      /* Sky Blue 500ish - Gradient End */
-          --primary-light: 59 130 246; /* NEW: Tailwind Blue-500 for user messages */
+          --primary: 34 159 220;      
+          --primary-light: 79 179 229; 
           --primary-fg: 255 255 255; 
-          --accent: 168 85 247;       /* Purple 500ish - Main action button, Header Icon, AI Avatar, Gradient Start */
-          --accent-dark: 147 51 234;  /* Purple 600ish - For send button hover */
+          --accent: 168 85 247;       
+          --accent-dark: 147 51 234;  
           --accent-fg: 255 255 255;
 
-          --neutral: 55 65 81;       /* gray-700 - main text */
-          --neutral-medium: 107 114 128; /* gray-500 - secondary text */
-          --neutral-light: 156 163 175;  /* gray-400 - subtle text, icons */
+          --neutral: 55 65 81;       
+          --neutral-medium: 107 114 128; 
+          --neutral-light: 156 163 175;  
 
-          --base-100: 248 250 252;   /* custom very light gray, like slate-50 */
-          --base-200: 241 245 249;   /* slate-100 */
-          --base-300: 226 232 240;   /* slate-200 */
-          --surface: 255 255 255;   /* white */
+          --base-100: 248 250 252;   
+          --base-200: 241 245 249;   
+          --base-300: 226 232 240;   
+          --surface: 255 255 255;   
         
-          --error: 239 68 68; /* red-500 */
-          --error-fg: 255 255 255; /* white for text on error bg */
+          --error: 239 68 68; 
+          --error-fg: 255 255 255; 
         }
         html, body, #root { @apply h-full overflow-hidden; }
         body { @apply font-sans bg-base-100 text-neutral m-0; }
@@ -108,12 +108,12 @@
             @apply absolute top-0 left-0 w-full h-full;
             background: linear-gradient(
               100deg, 
-              transparent 15%, 
-              rgba(249, 168, 212, 0.05) 30%, 
-              rgba(216, 180, 254, 0.05) 40%, 
-              rgba(94, 234, 212, 0.05) 50%,  
-              rgba(125, 211, 252, 0.05) 60%, 
-              transparent 85%
+              transparent 20%, 
+              rgba(249, 168, 212, 0.1) 35%, 
+              rgba(216, 180, 254, 0.1) 45%, 
+              rgba(94, 234, 212, 0.1) 55%,  
+              rgba(125, 211, 252, 0.1) 65%, 
+              transparent 80%
             );
             background-size: 250% 100%; 
             @apply animate-imageShimmerOverlayLight;
@@ -143,8 +143,9 @@
       import React, { useState, useCallback, useEffect, useRef } from 'react';
       import ReactDOM from 'react-dom/client';
 
-      const IMAGE_GEN_TEXT_MODEL_NAME = 'gemini-2.5-flash-preview-05-20'; 
-      const IMAGE_GEN_IMAGE_MODEL_NAME = 'gemini-2.0-flash-preview-image-generation';
+      const IMAGE_GEN_TEXT_MODEL_NAME = 'gemini-2.5-flash-preview-05-20'; // Used for Translation
+      const PROMPT_ENHANCEMENT_MODEL_NAME = 'gemini-2.0-flash-lite';   // Used for Prompt Enhancement
+      const IMAGE_GEN_IMAGE_MODEL_NAME = 'gemini-2.0-flash-preview-image-generation'; // Used for Image Generation
 
       const API_KEYS = [
           "AIzaSyDSF270Y1VJf1fe4G8ZAuw7bOITbAlal74", 
@@ -270,45 +271,39 @@
 
       const SparklesIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" {...props}><path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" /></svg>);
 
-      const ImagePreviewModal = ({ isOpen, imageSrc, onClose }) => {
-        if (!isOpen) return null;
+      const ImagePreviewModal = ({ src, onClose, altText }) => {
+        const [isClosing, setIsClosing] = useState(false);
 
-        useEffect(() => {
-          const handleKeyDown = (event) => {
-            if (event.key === 'Escape') {
-              onClose();
-            }
-          };
-          document.addEventListener('keydown', handleKeyDown);
-          return () => {
-            document.removeEventListener('keydown', handleKeyDown);
-          };
-        }, [onClose]);
+        const handleClose = () => {
+            setIsClosing(true);
+            setTimeout(() => {
+                onClose();
+                setIsClosing(false); 
+            }, 280); 
+        };
+
+        if (!src) return null;
 
         return (
-          <div 
-            className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-modal-fade-in"
-            onClick={onClose} 
-          >
             <div 
-              className="relative bg-surface p-2 rounded-lg shadow-2xl animate-modal-content-scale-up"
-              onClick={(e) => e.stopPropagation()} 
+                className={`fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4
+                            ${isClosing ? 'animate-modal-fade-out' : 'animate-modal-fade-in'}`}
+                onClick={handleClose} 
             >
-              <img 
-                src={`data:image/png;base64,${imageSrc}`} 
-                alt="Preview" 
-                className="block object-contain rounded"
-                style={{ maxWidth: 'calc(90vw - 1rem)', maxHeight: 'calc(90vh - 1rem)' }} // Accounts for p-2 (0.5rem each side) on parent
-              />
-              <button
-                onClick={onClose}
-                className="absolute -top-4 -right-4 bg-error text-error-fg rounded-full w-9 h-9 flex items-center justify-center shadow-lg hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-error-fg focus:ring-offset-2 focus:ring-offset-black/50"
-                aria-label="Close preview"
-              >
-                <i className="fas fa-times text-base"></i>
-              </button>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); handleClose(); }}
+                    className="absolute top-4 right-4 text-white/80 hover:text-white text-4xl font-light z-[51] transition-colors"
+                    aria-label="Close image preview"
+                >
+                    ×
+                </button>
+                <img 
+                    src={src} 
+                    alt={altText || "Image Preview"}
+                    className="max-w-[95vw] max-h-[95vh] object-contain rounded-lg shadow-2xl"
+                    onClick={(e) => e.stopPropagation()} 
+                />
             </div>
-          </div>
         );
       };
 
@@ -340,14 +335,15 @@
         if (isUser) { 
             return (
                 <div className="flex items-end justify-end">
-                    <div className="px-4 py-3 rounded-2xl bg-primary-light text-primary-fg rounded-br-lg max-w-[85%] sm:max-w-[80%] shadow">
+                    {/* Updated user message card color */}
+                    <div className="px-4 py-3 rounded-2xl bg-blue-500 text-white rounded-br-lg max-w-[85%] sm:max-w-[80%] shadow-sm">
                         <p className="text-base whitespace-pre-wrap">{message.promptText}</p>
                     </div>
                 </div>
             );
         }
         
-        const aiMessageCardBaseClasses = "rounded-2xl bg-surface border border-base-300 text-neutral rounded-bl-lg w-full max-w-md shadow";
+        const aiMessageCardBaseClasses = "rounded-2xl bg-surface border border-base-300 text-neutral rounded-bl-lg w-full max-w-md";
 
         return (
             <div className="flex flex-col items-start">
@@ -366,8 +362,8 @@
                             <img 
                                 src={`data:image/png;base64,${message.generatedImageB64}`} 
                                 alt={message.userImageRequestPrompt || "Generated by OraGen AI"}
-                                className="block w-full h-72 object-cover rounded-lg border border-base-200 cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => onOpenImagePreview(message.generatedImageB64)}
+                                className="block w-full h-72 object-cover rounded-lg border border-base-200 cursor-pointer hover:opacity-90 transition-opacity" 
+                                onClick={() => onOpenImagePreview(`data:image/png;base64,${message.generatedImageB64}`, message.userImageRequestPrompt)}
                             />
                         </div>
                     )}
@@ -441,7 +437,6 @@
                 }
             }
         };
-
 
         return (
           <div className="w-full h-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl sm:mx-auto bg-base-100 sm:rounded-2xl flex flex-col overflow-hidden">
@@ -525,21 +520,9 @@
         const [imageGenMessages, setImageGenMessages] = useState([]); 
         const [isProcessing, setIsProcessing] = useState(false); 
         const [globalError, setGlobalError] = useState(null);
+        const [previewImage, setPreviewImage] = useState({ src: null, alt: null });
 
-        const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
-        const [previewImageSrc, setPreviewImageSrc] = useState(null);
 
-        const handleOpenImagePreview = useCallback((imageDataB64) => {
-          setPreviewImageSrc(imageDataB64);
-          setIsPreviewModalOpen(true);
-        }, []);
-
-        const handleCloseImagePreview = useCallback(() => {
-          setIsPreviewModalOpen(false);
-          // Delay clearing src slightly to allow fade-out animation if any
-          setTimeout(() => setPreviewImageSrc(null), 300); 
-        }, []);
-        
         useEffect(() => { 
             if (!PRIMARY_API_KEY) { 
                 setGlobalError("Primary API Key is not configured. Please set API_KEYS array."); 
@@ -562,6 +545,14 @@
             console.log("OraGen: Image generation history cleared.");
         }, []);
 
+        const handleOpenImagePreview = (src, alt) => {
+            setPreviewImage({ src, alt: alt || "Generated Image Preview" });
+        };
+        const handleCloseImagePreview = () => {
+            setPreviewImage({ src: null, alt: null });
+        };
+
+
         const triggerImageGenerationProcess = async (imagePromptText, messageIdToUpdate) => {
             console.log("OraGen: Starting image generation for prompt:", imagePromptText);
             setIsProcessing(true);
@@ -576,6 +567,7 @@
                     throw new Error("Image prompt is too short or empty.");
                 }
 
+                // Step 1: Translation (uses IMAGE_GEN_TEXT_MODEL_NAME = gemini-2.5-flash-preview-05-20)
                 const translationPrompt = `Translate the following text to English if it's not already in English. If it's already in English, return it unchanged. Output only the translated text: "${imagePromptText}"`;
                 const translatedTextRaw = await makeApiCallWithRotation(IMAGE_GEN_TEXT_MODEL_NAME, translationPrompt, null, false);
                 const translatedText = translatedTextRaw.replace(/^"(.*)"$/, '$1').trim();
@@ -584,12 +576,14 @@
                     throw new Error("Translation resulted in an empty prompt.");
                 }
 
-                const enhancedPrompt = await makeApiCallWithRotation(IMAGE_GEN_TEXT_MODEL_NAME, translatedText, REFINE_SYSTEM_INSTRUCTION_REALISTIC, false);
+                // Step 2: Prompt Enhancement (uses PROMPT_ENHANCEMENT_MODEL_NAME = gemini-2.0-flash-lite)
+                const enhancedPrompt = await makeApiCallWithRotation(PROMPT_ENHANCEMENT_MODEL_NAME, translatedText, REFINE_SYSTEM_INSTRUCTION_REALISTIC, false);
                 
                 if (!enhancedPrompt || enhancedPrompt.toLowerCase().includes("please provide") || enhancedPrompt.toLowerCase().includes("i need a prompt")) {
                      throw new Error(`Failed to enhance prompt. Model said: "${enhancedPrompt}"`);
                 }
 
+                // Step 3: Image Generation (uses IMAGE_GEN_IMAGE_MODEL_NAME)
                 const generatedImageDataB64 = await makeApiCallWithRotation(IMAGE_GEN_IMAGE_MODEL_NAME, enhancedPrompt, null, true);
 
                 setImageGenMessages(prev => prev.map(m => 
@@ -654,24 +648,24 @@
 
 
         return (
-          <>
-            <div className="h-full bg-gradient-to-br from-sky-100 via-teal-50 to-purple-100 text-neutral flex flex-col font-sans sm:p-4 md:p-6 lg:p-8">
-              <ImageGenInterface 
-                  messages={imageGenMessages} 
-                  onRequestImageGeneration={handleRequestImageGeneration}
-                  isProcessing={isProcessing}
-                  globalError={globalError} 
-                  onRegenerateImage={handleRegenerateFailedImage} 
-                  onClearHistory={handleClearHistory} 
-                  onOpenImagePreview={handleOpenImagePreview}
-              />
-            </div>
-            <ImagePreviewModal 
-              isOpen={isPreviewModalOpen}
-              imageSrc={previewImageSrc}
-              onClose={handleCloseImagePreview}
+          <div className="h-full bg-gradient-to-br from-sky-100 via-teal-50 to-purple-100 text-neutral flex flex-col font-sans sm:p-4 md:p-6 lg:p-8">
+            <ImageGenInterface 
+                messages={imageGenMessages} 
+                onRequestImageGeneration={handleRequestImageGeneration}
+                isProcessing={isProcessing}
+                globalError={globalError} 
+                onRegenerateImage={handleRegenerateFailedImage} 
+                onClearHistory={handleClearHistory} 
+                onOpenImagePreview={handleOpenImagePreview}
             />
-          </>
+            {previewImage.src && (
+                <ImagePreviewModal 
+                    src={previewImage.src} 
+                    altText={previewImage.alt}
+                    onClose={handleCloseImagePreview} 
+                />
+            )}
+          </div>
         );
       };
 
